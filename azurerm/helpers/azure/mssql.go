@@ -42,3 +42,7 @@ func ValidateMsSqlElasticPoolName(i interface{}, k string) (_ []string, errors [
 
 	return nil, nil
 }
+
+func ValidateMsSqlSyncGroupName(i interface{}, k string) (_ []string, errors []error) {
+	return nil, nil
+}

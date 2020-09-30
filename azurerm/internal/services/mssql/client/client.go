@@ -19,6 +19,7 @@ type Client struct {
 	ServerConnectionPoliciesClient                     *sql.ServerConnectionPoliciesClient
 	ServerSecurityAlertPoliciesClient                  *sql.ServerSecurityAlertPoliciesClient
 	ServerVulnerabilityAssessmentsClient               *sql.ServerVulnerabilityAssessmentsClient
+	SyncGroupsClient                                   *sql.SyncGroupsClient
 	VirtualMachinesClient                              *sqlvirtualmachine.SQLVirtualMachinesClient
 }
 
@@ -58,6 +59,9 @@ func NewClient(o *common.ClientOptions) *Client {
 
 	serverConnectionPoliciesClient := sql.NewServerConnectionPoliciesClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
 	o.ConfigureClient(&serverConnectionPoliciesClient.Client, o.ResourceManagerAuthorizer)
+
+	syncGroupsClient := sql.NewSyncGroupsClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
+	o.ConfigureClient(&syncGroupsClient.Client, o.ResourceManagerAuthorizer)
 
 	sqlVirtualMachinesClient := sqlvirtualmachine.NewSQLVirtualMachinesClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
 	o.ConfigureClient(&sqlVirtualMachinesClient.Client, o.ResourceManagerAuthorizer)
