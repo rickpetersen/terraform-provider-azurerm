@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/services/preview/sql/mgmt/2017-03-01-preview/sql"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/terraform"
 
@@ -22,16 +21,10 @@ func TestAccAzureRMMsSqlSyncGroup_basic(t *testing.T) {
 		CheckDestroy: testCheckAzureRMMsSqlSyncGroupDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccAzureRMMsSqlServer_basic(data),
-				Check: resource.ComposeTestCheckFunc(
-					testCheckAzureRMMsSqlServerExists("azurerm_mssql_server.test"),
-				),
-			},
-			{
-				PreConfig: testSetupAzureRMMsSqlSyncGroup(data),
 				Config:    testAccAzureRMMsSqlSyncGroup_basic(data),
 				Check: resource.ComposeTestCheckFunc(
-					testCheckAzureRMMsSqlDatabaseExists("azurerm_mssql_database.test"),
+					testCheckAzureRMMsSqlDatabaseExists("azurerm_mssql_database.sync"),
+					testCheckAzureRMMsSqlDatabaseExists("azurerm_mssql_database.hub"),
 					testCheckAzureRMMsSqlSyncGroupExists(data.ResourceName),
 				),
 			},
@@ -81,43 +74,9 @@ func TestAccAzureRMMsSqlSyncGroup_disappears(t *testing.T) {
 	})
 }
 
-func testSetupAzureRMMsSqlSyncGroup(data acceptance.TestData) func() {
-	return func() {
-		client := acceptance.AzureProvider.Meta().(*clients.Client).Sql.DatabasesClient
-		ctx := acceptance.AzureProvider.Meta().(*clients.Client).StopContext
-
-		// We assume that the resource group and SQL server were already created
-		// Assuming resource group name and server name from testAccAzureRMSqlServer_basic()
-		// Database name will be assumed by testAccAzureRMMsSqlSyncGroup_basic()
-		// Lots of assumptions
-
-		resourceGroupName := fmt.Sprintf("acctestRG-%d", data.RandomInteger)
-		serverName        := fmt.Sprintf("acctestsqlserver%d", data.RandomInteger)
-		databaseName      := fmt.Sprintf("syncHub%d", data.RandomInteger)
-
-		properties := sql.Database{
-			DatabaseProperties: &sql.DatabaseProperties{
-				CreateMode: sql.CreateModeDefault,
-				Edition:    sql.Standard,
-				//MaxSizeBytes:                  nil,
-				RequestedServiceObjectiveName: sql.ServiceObjectiveNameS2,
-				SampleName:                    "AdventureWorksLT",
-				ZoneRedundant:                 utils.Bool(false),
-			},
-			Location: utils.String(data.Locations.Primary),
-		}
-
-		// No error handling here, since the SDK assumes no return value for this func
-		future, err := client.CreateOrUpdate(ctx, resourceGroupName, serverName, databaseName, properties)
-		if err != nil {
-			future.WaitForCompletionRef(ctx, client.Client)
-		}
-	}
-}
-
 func testCheckAzureRMMsSqlSyncGroupExists(resourceName string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		client := acceptance.AzureProvider.Meta().(*clients.Client).Sql.SyncGroupsClient
+		client := acceptance.AzureProvider.Meta().(*clients.Client).MSSQL.SyncGroupsClient
 		ctx := acceptance.AzureProvider.Meta().(*clients.Client).StopContext
 
 		rs, ok := s.RootModule().Resources[resourceName]
@@ -144,7 +103,7 @@ func testCheckAzureRMMsSqlSyncGroupExists(resourceName string) resource.TestChec
 }
 
 func testCheckAzureRMMsSqlSyncGroupDestroy(s *terraform.State) error {
-	client := acceptance.AzureProvider.Meta().(*clients.Client).Sql.SyncGroupsClient
+	client := acceptance.AzureProvider.Meta().(*clients.Client).MSSQL.SyncGroupsClient
 	ctx := acceptance.AzureProvider.Meta().(*clients.Client).StopContext
 
 	for _, rs := range s.RootModule().Resources {
@@ -174,7 +133,7 @@ func testCheckAzureRMMsSqlSyncGroupDestroy(s *terraform.State) error {
 
 func testCheckAzureRMMsSqlSyncGroupDisappears(resourceName string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		client := acceptance.AzureProvider.Meta().(*clients.Client).Sql.SyncGroupsClient
+		client := acceptance.AzureProvider.Meta().(*clients.Client).MSSQL.SyncGroupsClient
 		ctx := acceptance.AzureProvider.Meta().(*clients.Client).StopContext
 
 		// Ensure we have enough information in state to look up in API
@@ -203,26 +162,27 @@ func testAccAzureRMMsSqlSyncGroup_basic(data acceptance.TestData) string {
 %s
 
 resource "azurerm_mssql_database" "sync" {
-  name                             = "syncStore%d"
-  resource_group_name              = azurerm_resource_group.test.name
-  server_name                      = azurerm_mssql_server.test.name
-  location                         = azurerm_resource_group.test.location
-  edition                          = "Standard"
-  //max_size_bytes                   = "1073741824"
-  requested_service_objective_name = "S1"
+  name      = "syncStore%[2]d"
+  server_id = azurerm_mssql_server.test.id
+  sku_name  = "S1"
+}
+
+resource "azurerm_mssql_database" "hub" {
+  name        = "syncHub%[2]d"
+  server_id   = azurerm_mssql_server.test.id
+  sku_name    = "S2"
+  sample_name = "AdventureWorksLT"
 }
 
 resource "azurerm_mssql_sync_group" "test" {
-  name                = "acctest-syncgroup-%[2]d"
-  resource_group_name = azurerm_resource_group.test.name
-  server_name         = azurerm_mssql_server.test.name
-  database_name       = "syncHub%[2]d"
+  name        = "acctest-syncgroup-%[2]d"
+  database_id = azurerm_mssql_database.hub.id
 
   conflict_resolution_policy = "HubWin"
   sync_database_id           = azurerm_mssql_database.sync.id
 
   hub_database_username = azurerm_mssql_server.test.administrator_login
-  hub_database_password = "thisIsDog11"
+  hub_database_password = "thisIsKat11"
 
   //primary_sync_member_name = "BLURH"
 
