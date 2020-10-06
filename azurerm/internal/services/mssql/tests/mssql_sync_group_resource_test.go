@@ -32,6 +32,28 @@ func TestAccAzureRMMsSqlSyncGroup_basic(t *testing.T) {
 		},
 	})
 }
+
+func TestAccAzureRMMsSqlSyncGroup_complete(t *testing.T) {
+	data := acceptance.BuildTestData(t, "azurerm_mssql_sync_group", "test")
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:     func() { acceptance.PreCheck(t) },
+		Providers:    acceptance.SupportedProviders,
+		CheckDestroy: testCheckAzureRMMsSqlSyncGroupDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config:    testAccAzureRMMsSqlSyncGroup_complete(data),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMMsSqlDatabaseExists("azurerm_mssql_database.sync"),
+					testCheckAzureRMMsSqlDatabaseExists("azurerm_mssql_database.hub"),
+					testCheckAzureRMMsSqlSyncGroupExists(data.ResourceName),
+				),
+			},
+			data.ImportStep(),
+		},
+	})
+}
+
 func TestAccAzureRMMsSqlSyncGroup_requiresImport(t *testing.T) {
 	data := acceptance.BuildTestData(t, "azurerm_mssql_sync_group", "test")
 
@@ -157,9 +179,9 @@ func testCheckAzureRMMsSqlSyncGroupDisappears(resourceName string) resource.Test
 	}
 }
 
-func testAccAzureRMMsSqlSyncGroup_basic(data acceptance.TestData) string {
+func testAccAzureRMMsSqlSyncGroup_template(data acceptance.TestData) string {
 	return fmt.Sprintf(`
-%s
+%[1]s
 
 resource "azurerm_mssql_database" "sync" {
   name      = "syncStore%[2]d"
@@ -173,6 +195,30 @@ resource "azurerm_mssql_database" "hub" {
   sku_name    = "S2"
   sample_name = "AdventureWorksLT"
 }
+`, testAccAzureRMMsSqlServer_basic(data), data.RandomInteger)
+}
+
+func testAccAzureRMMsSqlSyncGroup_basic(data acceptance.TestData) string {
+	return fmt.Sprintf(`
+%[1]s
+
+resource "azurerm_mssql_sync_group" "test" {
+  name        = "acctest-syncgroup-%[2]d"
+  database_id = azurerm_mssql_database.hub.id
+
+  conflict_resolution_policy = "HubWin"
+  sync_database_id           = azurerm_mssql_database.sync.id
+
+  hub_database_username = azurerm_mssql_server.test.administrator_login
+  hub_database_password = "thisIsKat11"
+}
+
+`, testAccAzureRMMsSqlSyncGroup_template(data), data.RandomInteger)
+}
+
+func testAccAzureRMMsSqlSyncGroup_complete(data acceptance.TestData) string {
+	return fmt.Sprintf(`
+%s
 
 resource "azurerm_mssql_sync_group" "test" {
   name        = "acctest-syncgroup-%[2]d"
@@ -184,7 +230,7 @@ resource "azurerm_mssql_sync_group" "test" {
   hub_database_username = azurerm_mssql_server.test.administrator_login
   hub_database_password = "thisIsKat11"
 
-  //primary_sync_member_name = "BLURH"
+  //primary_sync_member_name = azurerm_mssql_database.hub.name
 
   table {
     name = "[SalesLT].[Product]"
@@ -209,7 +255,7 @@ resource "azurerm_mssql_sync_group" "test" {
   }
 }
 
-`, testAccAzureRMMsSqlServer_basic(data), data.RandomInteger)
+`, testAccAzureRMMsSqlSyncGroup_template(data), data.RandomInteger)
 }
 
 func testAccAzureRMMsSqlSyncGroup_requiresImport(data acceptance.TestData) string {

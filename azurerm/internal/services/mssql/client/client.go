@@ -79,6 +79,7 @@ func NewClient(o *common.ClientOptions) *Client {
 		ServerConnectionPoliciesClient:                     &serverConnectionPoliciesClient,
 		ServerSecurityAlertPoliciesClient:                  &serverSecurityAlertPoliciesClient,
 		ServerVulnerabilityAssessmentsClient:               &serverVulnerabilityAssessmentsClient,
+		SyncGroupsClient:                                   &syncGroupsClient,
 		VirtualMachinesClient:                              &sqlVirtualMachinesClient,
 	}
 }
